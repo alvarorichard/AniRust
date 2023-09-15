@@ -1,12 +1,14 @@
 extern crate reqwest;
 extern crate scraper;
 
+use lazy_regex::regex_captures;
 use std::io;
 
 use scraper::{Html, Selector};
 use tokio;
 
 #[tokio::main]
+
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Por favor, insira o nome do anime:");
 
@@ -19,8 +21,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let api_url = "https://betteranime.net/pesquisa";
 
+
     let client = reqwest::Client::new();
-    let response = client.get(api_url)
+    let response = client
+        .get(api_url)
         .query(&[("titulo", &search_term), ("searchTerm", &search_term)])
         .header("User-Agent", "Mozilla/5.0")
         .send()
@@ -28,24 +32,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if response.status().is_success() {
         let data = response.text().await?;
-        println!("Dados recebidos: {:?}", data);
-
-        let document = Html::parse_document(&data);
-
-        // Agora você pode usar o scraper para selecionar e processar elementos do HTML.
-        // Exemplo de seleção de elementos por classe:
-        let title_selector = Selector::parse(".title").unwrap();
-        for element in document.select(&title_selector) {
-            println!("Título da Página: {}", element.text().collect::<String>());
-        }
-
-        // Exemplo de seleção de elementos <a> (links):
-        let link_selector = Selector::parse("a").unwrap();
-        for element in document.select(&link_selector) {
-            let link_text = element.text().collect::<String>();
-            let link_href = element.value().attr("href").unwrap_or("");
-            println!("Link: {} - {}", link_text, link_href);
-        }
+        let found = regex_captures!(r#""(https:\/\/betteranime\.net\/anime\/([\w]+)\/([\w-]+))""#, &data);
+        println!("{:?}", &found);
     } else {
         println!("Erro ao fazer a requisição: {}", response.status());
     }
