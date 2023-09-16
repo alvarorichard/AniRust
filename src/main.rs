@@ -87,11 +87,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             .unwrap_or_else(|| "URL do episódio não encontrado".to_string());
 
                         // Executar o MPV com o URL do episódio
-                        let mpv_result = Command::new("mpv")
+                        let vlc_result = Command::new("vlc")
                             .arg(&episode_url)
                             .spawn();
 
-                        match mpv_result {
+                        match vlc_result {
                             Ok(mut child) => {
                                 // Esperar pelo término do MPV (o programa ficará bloqueado aqui até que o MPV seja encerrado)
                                 match child.wait() {
