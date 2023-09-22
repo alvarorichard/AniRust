@@ -1,8 +1,10 @@
 extern crate reqwest;
 use regex::Regex;
+use reqwest::cookie::Jar;
 use std::io;
 use std::process::Command;
 use tokio;
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let api_url = "https://betteranime.net/pesquisa";
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder().cookie_store(true).build().unwrap();
     let response = client
         .get(api_url)
         .query(&[("titulo", &search_term), ("searchTerm", &search_term)])
@@ -57,18 +59,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if episode_page_response.status().is_success() {
                 let episode_page_data = episode_page_response.text().await?;
 
+                // println!("Episódios encontrados: {}", episode_page_data);
                 // Usar regex para listar os episódios
-                let re = Regex::new(r"https:\/\/betteranime\.net\/anime\/[\w]+\/[\w-]+\/[\w]+-(\d+)").unwrap();
+
+                let re = Regex::new(r"(https:\/\/betteranime\.net\/anime\/[\w]+\/[\w-]+\/[\w]+-(\d+))").unwrap();
                 let episodios: Vec<_> = re.captures_iter(&episode_page_data)
-                    .map(|cap| format!("Episódio {}", &cap[1]))
+                    .map(|cap|(cap[1].to_string(), cap[2].to_string()))
                     .collect();
+                
+                
 
                 if episodios.is_empty() {
                     println!("Nenhum episódio encontrado.");
                 } else {
                     println!("Episódios encontrados:");
                     for (i, ep) in episodios.iter().enumerate() {
-                        println!("{}: {}", i + 1, ep);
+                        println!("{}: {}", i + 1, ep.0);
                     }
 
                     println!("Por favor, selecione um episódio:");
@@ -78,17 +84,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     if episode_choice > 0 && episode_choice <= episodios.len() {
                         let selected_episode = &episodios[episode_choice - 1];
-                        println!("Você selecionou: {}", selected_episode);
+                        println!("Você selecionou: {}", selected_episode.1);
 
-                        // Substitua esta regex pela que corresponde ao seu site para criar o URL do episódio
-                        let re = Regex::new(r"https:\/\/site\.com\/[\w]+\/episodio-(\d+)").unwrap();
-                        let episode_url = re.captures(selected_episode)
-                            .map(|cap| cap[0].to_string())
-                            .unwrap_or_else(|| "URL do episódio não encontrado".to_string());
+                    
+                        // print o texto do episódio
+                        println!("Texto do episódio: {}", selected_episode.1);
+                        let episode_url = selected_episode.0.as_str();
+                        println!("URL do episódio: {}", episode_url);
 
+
+                        let response = client
+                        .get(episode_url)
+                        .header("User-Agent", "Mozilla/5.0")
+                        .send()
+                        .await?.text().await?;
+
+                        let re = Regex::new(r#"src="(https:\/\/betteranime\.net\/player\?.*?)""#).unwrap();
+                        let cap = re.captures(&response).unwrap();
+                        println!("{:?}",cap);
+                        let response = client
+                        .get(cap[1].to_string())
+                        .header("User-Agent", "Mozilla/5.0")
+                        .send()
+                        .await?.text().await?;
+                        println!("{}",response);
+                        let re =  Regex::new(r#""file":\s"(https:\\\/\\\/betterserver.ga\\\/playlist.*?)""#).unwrap();
+                        let cap = re.captures(&response).unwrap();
+                        // da acesso negado porra
+                        
                         // Executar o MPV com o URL do episódio
                         let vlc_result = Command::new("vlc")
-                            .arg(&episode_url)
+                            .arg(&cap[0].to_string())
                             .spawn();
 
                         match vlc_result {
